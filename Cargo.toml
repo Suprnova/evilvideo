@@ -1,0 +1,12 @@
+[package]
+name = "evilvideo"
+version = "0.1.0"
+authors = ["Suprnova"]
+edition = "2021"
+description = "The weapon to destroy the foul beast that is Heavy Iron Bik Converter"
+readme = "README.md"
+homepage = "https://heavyironmodding.org/wiki/evilvideo"
+repository = "https://github.com/suprnova/evilvideo"
+license = "WTFPL"
+
+[dependencies]

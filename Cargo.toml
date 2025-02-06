@@ -1,6 +1,6 @@
 [package]
 name = "evilvideo"
-version = "0.1.0"
+version = "0.1.1"
 authors = ["Suprnova"]
 edition = "2021"
 description = "The weapon to destroy the foul beast that is Heavy Iron Bik Converter"
@@ -10,3 +10,4 @@ repository = "https://github.com/suprnova/evilvideo"
 license = "WTFPL"
 
 [dependencies]
+clap = { version = "4.0", features = ["derive"] }

@@ -4,7 +4,8 @@ use clap::{error::ErrorKind, CommandFactory, Parser, ValueEnum};
 use which::which;
 
 // TODO: Support multiple inputs and outputs,
-// add field for custom Binkc
+// add field for custom Binkconv args,
+// add field for custom executable name
 #[derive(Parser)]
 #[command(version, about)]
 struct Cli {
@@ -20,6 +21,7 @@ struct Cli {
     #[arg(short = 'y', long, default_value_t = false)]
     overwrite: bool,
 
+    /// path to RADVideo folder
     #[arg(short, long)]
     radvideo_path: Option<PathBuf>,
 
@@ -54,9 +56,12 @@ impl GameFormat {
 fn main() {
     let args = Cli::parse();
 
+    // first check if rad_path is provided
     let _rad_path = &args.radvideo_path.unwrap_or_else(|| {
+        // if not, try to find radvideo64.exe in %PATH%
         which("radvideo64.exe")
             .unwrap_or_else(|_| {
+                // no binary found, throw error
                 let mut cmd = Cli::command();
                 cmd.error(
                     ErrorKind::MissingRequiredArgument,
@@ -66,10 +71,15 @@ fn main() {
                 )
                 .exit();
             })
+            // binary found, set _rad_path to its parent
             .parent()
+            // this *should* be safe because which always returns a path to the executable,
+            // which must have a parent directory since it's a file
             .unwrap()
             .to_path_buf()
     });
+
+    // rad_path was provided (or created from path), ensure radvideo64.exe exists in it
     which(_rad_path.join("radvideo64.exe")).unwrap_or_else(|_| {
         let mut cmd = Cli::command();
         cmd.error(

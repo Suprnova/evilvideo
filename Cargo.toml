@@ -1,6 +1,6 @@
 [package]
 name = "evilvideo"
-version = "0.1.1"
+version = "0.1.2"
 authors = ["Suprnova"]
 edition = "2021"
 description = "The weapon to destroy the foul beast that is Heavy Iron Bik Converter"
@@ -11,3 +11,4 @@ license = "WTFPL"
 
 [dependencies]
 clap = { version = "4.0", features = ["derive"] }
+which = "7.0.2"

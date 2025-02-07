@@ -1,0 +1,45 @@
+{
+    // Use IntelliSense to learn about possible attributes.
+    // Hover to view descriptions of existing attributes.
+    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug executable 'evilvideo'",
+            "cargo": {
+                "args": [
+                    "build",
+                    "--bin=evilvideo",
+                    "--package=evilvideo"
+                ],
+                "filter": {
+                    "name": "evilvideo",
+                    "kind": "bin"
+                }
+            },
+            "args": ["-i", "LICENSE", "-f", "movie", "-r", "/mnt/c/Program Files (x86)/RADVideo"],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug unit tests in executable 'evilvideo'",
+            "cargo": {
+                "args": [
+                    "test",
+                    "--no-run",
+                    "--bin=evilvideo",
+                    "--package=evilvideo"
+                ],
+                "filter": {
+                    "name": "evilvideo",
+                    "kind": "bin"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        }
+    ]
+}

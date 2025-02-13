@@ -19,7 +19,7 @@
                     "kind": "bin"
                 }
             },
-            "args": ["-i", "LICENSE", "-f", "movie", "-r", "/mnt/c/Program Files (x86)/RADVideo"],
+            "args": ["LICENSE", "-f", "movie", "-r", "/mnt/c/Program Files (x86)/RADVideo"],
             "cwd": "${workspaceFolder}"
         },
         {

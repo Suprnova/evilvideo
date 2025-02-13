@@ -11,7 +11,6 @@ use which::which;
 #[derive(Parser)]
 #[command(version, about)]
 struct Cli {
-    #[arg(short, long = "input")]
     /// file to convert
     infile: PathBuf,
 
@@ -27,7 +26,7 @@ struct Cli {
     #[arg(short, long)]
     radvideo_path: Option<PathBuf>,
 
-    /// file to output
+    #[arg(short, long = "output")]
     outfile: Option<PathBuf>,
 }
 
@@ -114,8 +113,31 @@ fn precheck_args(args: Cli) -> (File, GameFormat, bool, PathBuf, PathBuf) {
         .exit()
     });
 
-    // TODO: prompt to overwrite if flag isn't set
+    // TODO: ensure this is valid?
     let outfile = args.outfile.unwrap_or(args.infile.with_extension("bik"));
+    if outfile.is_dir() {
+        let mut cmd = Cli::command();
+        cmd.error(
+            ErrorKind::Io,
+            format!("OUTFILE {} is a directory\n", outfile.display()),
+        )
+        .exit()
+    };
+
+    if outfile.exists() && !args.overwrite {
+        let mut cmd = Cli::command();
+        cmd.error(
+            ErrorKind::Io,
+            format!(
+                "OUTFILE {} already exists\nPlease use the -y launch argument \
+            to confirm that you wish to overwrite this file, or change the OUTFILE name with \
+            the -o launch argument.",
+                outfile.display()
+            ),
+        )
+        .exit()
+    };
+
     (infile, args.format, args.overwrite, rad_path, outfile)
 }
 

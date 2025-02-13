@@ -6,6 +6,8 @@ use which::which;
 // TODO: Support multiple inputs and outputs,
 // add field for custom Binkconv args,
 // add field for custom executable name
+/// Represents the launch arguments for the application.
+/// Derives from clap::Parser.
 #[derive(Parser)]
 #[command(version, about)]
 struct Cli {
@@ -29,6 +31,7 @@ struct Cli {
     outfile: Option<PathBuf>,
 }
 
+/// Represents the game to convert a video for
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, ValueEnum)]
 enum GameFormat {
     /// Scooby Doo! Night of 100 Frights
@@ -44,6 +47,8 @@ enum GameFormat {
 }
 
 impl GameFormat {
+    /// Returns a set of width, height variables that correspond to
+    /// the appropriate resolution for a video in the appropriate game.
     fn _get_resolution(&self) -> (i32, i32) {
         match *self {
             Self::N100F | Self::Battle => (640, 480),
@@ -53,11 +58,17 @@ impl GameFormat {
     }
 }
 
-fn main() {
-    let args = Cli::parse();
-
+/// Performs all launch argument parsing to ensure the application's state
+/// is valid, then returns parsed arguments in the following order and specifications:
+///
+/// * infile: File
+/// * game_format: GameFormat
+/// * overwrite_outfile: bool
+/// * path_to_radvideo_folder: PathBuf
+/// * path_to_outfile: PathBuf
+fn precheck_args(args: Cli) -> (File, GameFormat, bool, PathBuf, PathBuf) {
     // first check if rad_path is provided
-    let _rad_path = &args.radvideo_path.unwrap_or_else(|| {
+    let rad_path = args.radvideo_path.unwrap_or_else(|| {
         // if not, try to find radvideo64.exe in %PATH%
         which("radvideo64.exe")
             .unwrap_or_else(|_| {
@@ -80,7 +91,7 @@ fn main() {
     });
 
     // rad_path was provided (or created from path), ensure radvideo64.exe exists in it
-    which(_rad_path.join("radvideo64.exe")).unwrap_or_else(|_| {
+    which(rad_path.join("radvideo64.exe")).unwrap_or_else(|_| {
         let mut cmd = Cli::command();
         cmd.error(
             ErrorKind::InvalidValue,
@@ -88,13 +99,13 @@ fn main() {
                 "RADVideo doesn't appear to be installed in the provided directory {}\n\
             Please ensure the provided directory contains the radvideo64 executable, or clear the \
             -r argument to use your %PATH%, if configured correctly.",
-                &_rad_path.display()
+                &rad_path.display()
             ),
         )
         .exit();
     });
 
-    let _infile = File::open(&args.infile).unwrap_or_else(|_| {
+    let infile = File::open(&args.infile).unwrap_or_else(|_| {
         let mut cmd = Cli::command();
         cmd.error(
             ErrorKind::Io,
@@ -104,5 +115,12 @@ fn main() {
     });
 
     // TODO: prompt to overwrite if flag isn't set
-    let _outfile = &args.outfile.unwrap_or(args.infile.with_extension("bik"));
+    let outfile = args.outfile.unwrap_or(args.infile.with_extension("bik"));
+    (infile, args.format, args.overwrite, rad_path, outfile)
+}
+
+fn main() {
+    let args = Cli::parse();
+
+    let (_infile, _format, _overwrite, _rad_path, _outfile) = precheck_args(args);
 }

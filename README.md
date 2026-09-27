@@ -7,7 +7,5 @@ evilvideo is a tool for modders of Heavy Iron Studios' EvilEngine games who wish
 * The Incredibles
 * The Incredibles: Rise of the Underminer
 
-# Usage
-
 # License
 This project is licensed under the Do What The F*ck You Want To Public License (WTFPL). License terms can be found in [LICENSE](LICENSE).

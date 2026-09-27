@@ -26,7 +26,7 @@ static bool quotes_as(const wchar_t *arg, const wchar_t *expected)
     return wcscmp(cmdline.text, expected) == 0;
 }
 
-static void add_child(ev_cmdline *cmdline, const wchar_t *mode)
+void add_test_child(ev_cmdline *cmdline, const wchar_t *mode)
 {
     wchar_t self[MAX_PATH];
     GetModuleFileNameW(NULL, self, MAX_PATH);
@@ -47,7 +47,7 @@ static child_run run_child(void)
 {
     HANDLE job = ev_job_create();
     ev_cmdline cmdline = { 0 };
-    add_child(&cmdline, L"output");
+    add_test_child(&cmdline, L"output");
     child_run run = { 0 };
 
     run.ok = ev_process_run(job, &cmdline, collect_line, &run, &run.errors, &run.exit_code);
@@ -170,7 +170,7 @@ static void terminating_job_ends_its_processes(void)
 {
     HANDLE job = ev_job_create();
     ev_cmdline cmdline = { 0 };
-    add_child(&cmdline, L"sleep");
+    add_test_child(&cmdline, L"sleep");
     HANDLE process;
     bool started = ev_process_start(job, &cmdline, &process);
 
@@ -188,7 +188,7 @@ static void closing_job_ends_its_processes(void)
 {
     HANDLE job = ev_job_create();
     ev_cmdline cmdline = { 0 };
-    add_child(&cmdline, L"sleep");
+    add_test_child(&cmdline, L"sleep");
     HANDLE process;
     bool started = ev_process_start(job, &cmdline, &process);
 

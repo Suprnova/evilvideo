@@ -15,6 +15,10 @@ void run_test(const char *name, void (*test)(void))
 }
 
 void games_tests(void);
+void ffmpeg_tests(void);
+void files_tests(void);
+void rad_tests(void);
+int rad_test_fake(void);
 void proc_tests(void);
 int proc_test_child(const char *mode);
 
@@ -22,9 +26,14 @@ int main(int argc, char **argv)
 {
     if (argc == 3 && strcmp(argv[1], "child") == 0)
         return proc_test_child(argv[2]);
+    if (argc > 1 && (strcmp(argv[1], "Binkc") == 0 || strcmp(argv[1], "BinkMix") == 0))
+        return rad_test_fake();
 
     games_tests();
     proc_tests();
+    ffmpeg_tests();
+    files_tests();
+    rad_tests();
 
     printf("%d failed\n", failures);
     return failures == 0 ? 0 : 1;

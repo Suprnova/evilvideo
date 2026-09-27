@@ -13,7 +13,7 @@ jobs:
       - name: Install toolchain
         run: |
           sudo apt-get update
-          sudo apt-get install -y --no-install-recommends gcc-mingw-w64-x86-64 ninja-build wine wine64
+          sudo apt-get install -y --no-install-recommends gcc-mingw-w64-x86-64 ninja-build wine wine64 xvfb
 
       - name: Configure
         run: cmake --preset mingw
@@ -21,8 +21,9 @@ jobs:
       - name: Build
         run: cmake --build --preset mingw
 
+      # The RAD watcher tests create windows, which Wine can only do with a display.
       - name: Test
-        run: ctest --preset mingw
+        run: xvfb-run -a ctest --preset mingw
         env:
           WINEDEBUG: -all
 

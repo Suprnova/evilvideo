@@ -1,5 +1,6 @@
 #include "proc.h"
 
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <wchar.h>
@@ -68,29 +69,62 @@ static void close_keeping_error(HANDLE handle)
     SetLastError(error);
 }
 
-HANDLE ev_job_create(void)
+void ev_error_message(wchar_t *message, size_t size, const wchar_t *what, DWORD error)
 {
-    HANDLE job = CreateJobObjectW(NULL, NULL);
-    if (!job)
-        return NULL;
+    int used = swprintf(message, size, L"%ls: ", what);
+    if (used < 0 || !FormatMessageW(FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS, NULL, error, 0,
+                                    message + used, (DWORD)(size - used), NULL)) {
+        swprintf(message, size, L"%ls (error %lu).", what, error);
+        return;
+    }
+
+    size_t length = wcslen(message);
+    while (length > 0 && (message[length - 1] == L'\r' || message[length - 1] == L'\n' || message[length - 1] == L' '))
+        message[--length] = L'\0';
+}
+
+bool ev_job_create(ev_job *job)
+{
+    *job = (ev_job){ .handle = CreateJobObjectW(NULL, NULL) };
+    InitializeSRWLock(&job->lock);
+    if (!job->handle)
+        return false;
 
     JOBOBJECT_EXTENDED_LIMIT_INFORMATION limits = {
         .BasicLimitInformation.LimitFlags = JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE,
     };
-    if (!SetInformationJobObject(job, JobObjectExtendedLimitInformation, &limits, sizeof limits)) {
-        close_keeping_error(job);
-        return NULL;
-    }
-    return job;
-}
-
-static bool spawn(HANDLE job, ev_cmdline *cmdline, bool visible, HANDLE output, HANDLE errors, HANDLE *process)
-{
-    if (cmdline->too_long) {
-        SetLastError(ERROR_FILENAME_EXCED_RANGE);
+    if (!SetInformationJobObject(job->handle, JobObjectExtendedLimitInformation, &limits, sizeof limits)) {
+        close_keeping_error(job->handle);
+        job->handle = NULL;
         return false;
     }
+    return true;
+}
 
+void ev_job_cancel(ev_job *job)
+{
+    AcquireSRWLockExclusive(&job->lock);
+    job->cancelled = true;
+    TerminateJobObject(job->handle, ERROR_CANCELLED);
+    ReleaseSRWLockExclusive(&job->lock);
+}
+
+bool ev_job_cancelled(ev_job *job)
+{
+    AcquireSRWLockShared(&job->lock);
+    bool cancelled = job->cancelled;
+    ReleaseSRWLockShared(&job->lock);
+    return cancelled;
+}
+
+void ev_job_close(ev_job *job)
+{
+    CloseHandle(job->handle);
+    job->handle = NULL;
+}
+
+static bool start_in_job(HANDLE job, ev_cmdline *cmdline, bool visible, HANDLE output, HANDLE errors, HANDLE *process)
+{
     bool redirect = output != NULL;
     STARTUPINFOW startup = {
         .cb = sizeof startup,
@@ -119,7 +153,24 @@ static bool spawn(HANDLE job, ev_cmdline *cmdline, bool visible, HANDLE output, 
     return true;
 }
 
-bool ev_process_start(HANDLE job, ev_cmdline *cmdline, bool visible, HANDLE *process)
+// Holds the job's lock until the process is inside it: Windows lets a process join a job that was already terminated,
+// so a cancel landing between a check and the start would otherwise miss it.
+static bool spawn(ev_job *job, ev_cmdline *cmdline, bool visible, HANDLE output, HANDLE errors, HANDLE *process)
+{
+    if (cmdline->too_long) {
+        SetLastError(ERROR_FILENAME_EXCED_RANGE);
+        return false;
+    }
+
+    AcquireSRWLockExclusive(&job->lock);
+    bool started = !job->cancelled && start_in_job(job->handle, cmdline, visible, output, errors, process);
+    if (job->cancelled)
+        SetLastError(ERROR_CANCELLED);
+    ReleaseSRWLockExclusive(&job->lock);
+    return started;
+}
+
+bool ev_process_start(ev_job *job, ev_cmdline *cmdline, bool visible, HANDLE *process)
 {
     return spawn(job, cmdline, visible, NULL, NULL, process);
 }
@@ -201,7 +252,7 @@ static DWORD WINAPI drain_thread(void *param)
     return 0;
 }
 
-bool ev_process_run(HANDLE job, ev_cmdline *cmdline, ev_line_callback on_line, void *context, char **errors,
+bool ev_process_run(ev_job *job, ev_cmdline *cmdline, ev_line_callback on_line, void *context, char **errors,
                     DWORD *exit_code)
 {
     *errors = NULL;

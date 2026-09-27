@@ -132,10 +132,11 @@ static void log_line(const watch_state *state, const wchar_t *format, ...)
         state->run->on_log(line, state->run->context);
 }
 
-// Logs a window the first time it is seen, and again whenever its title changes.
+// Logs a window the first time it is seen, and again whenever its title changes. The input method windows Windows
+// gives every GUI program are left out.
 static void note_window(watch_state *state, HWND window, const wchar_t *class_name, const wchar_t *title)
 {
-    if (!state->run->on_log)
+    if (!state->run->on_log || wcscmp(class_name, L"IME") == 0 || wcscmp(class_name, L"MSCTFIME UI") == 0)
         return;
 
     seen_window *seen = NULL;
@@ -192,20 +193,6 @@ static BOOL CALLBACK watch_window(HWND window, LPARAM param)
     return TRUE;
 }
 
-static void describe_error(wchar_t *message, size_t size, const wchar_t *what, DWORD error)
-{
-    int used = swprintf(message, size, L"%ls: ", what);
-    if (used < 0 || !FormatMessageW(FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS, NULL, error, 0,
-                                    message + used, (DWORD)(size - used), NULL)) {
-        swprintf(message, size, L"%ls (error %lu).", what, error);
-        return;
-    }
-
-    size_t length = wcslen(message);
-    while (length > 0 && (message[length - 1] == L'\r' || message[length - 1] == L'\n' || message[length - 1] == L' '))
-        message[--length] = L'\0';
-}
-
 static bool run_tool(const ev_rad_run *run, ev_cmdline *cmdline, const wchar_t *tool, const wchar_t *output,
                      wchar_t *message, size_t message_size)
 {
@@ -222,7 +209,7 @@ static bool run_tool(const ev_rad_run *run, ev_cmdline *cmdline, const wchar_t *
     ULONGLONG start = GetTickCount64();
     HANDLE process;
     if (!ev_process_start(run->job, cmdline, run->visible, &process)) {
-        describe_error(message, message_size, L"Could not start RAD Video Tools", GetLastError());
+        ev_error_message(message, message_size, L"Could not start RAD Video Tools", GetLastError());
         return false;
     }
 

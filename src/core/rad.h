@@ -20,8 +20,8 @@ typedef void (*ev_rad_progress)(int percent, void *context);
 
 /** What ev_rad_compress and ev_rad_mix run on, and how. */
 typedef struct ev_rad_run {
-    /** The job to run the tool in. Terminating the job ends the run early, as a failure. */
-    HANDLE job;
+    /** The job to run the tool in. Cancelling the job ends the run early, as a failure. */
+    ev_job *job;
     /** The full path to radvideo64.exe. */
     const wchar_t *rad;
     /** A folder from ev_temp_create. */

@@ -45,14 +45,15 @@ static void collect_line(const char *line, void *context)
 
 static child_run run_child(void)
 {
-    HANDLE job = ev_job_create();
+    ev_job job;
+    ev_job_create(&job);
     ev_cmdline cmdline = { 0 };
     add_test_child(&cmdline, L"output");
     child_run run = { 0 };
 
-    run.ok = ev_process_run(job, &cmdline, collect_line, &run, &run.errors, &run.exit_code);
+    run.ok = ev_process_run(&job, &cmdline, collect_line, &run, &run.errors, &run.exit_code);
 
-    CloseHandle(job);
+    ev_job_close(&job);
     return run;
 }
 
@@ -156,43 +157,66 @@ static void add_drops_argument_that_does_not_fit(void)
 
 static void start_refuses_command_line_that_is_too_long(void)
 {
-    HANDLE job = ev_job_create();
+    ev_job job;
+    ev_job_create(&job);
     ev_cmdline cmdline = { .too_long = true };
     HANDLE process;
 
-    bool started = ev_process_start(job, &cmdline, false, &process);
+    bool started = ev_process_start(&job, &cmdline, false, &process);
 
     EXPECT(!started && GetLastError() == ERROR_FILENAME_EXCED_RANGE);
-    CloseHandle(job);
+    ev_job_close(&job);
 }
 
-static void terminating_job_ends_its_processes(void)
+static void cancelling_job_ends_its_processes(void)
 {
-    HANDLE job = ev_job_create();
+    ev_job job;
+    ev_job_create(&job);
     ev_cmdline cmdline = { 0 };
     add_test_child(&cmdline, L"sleep");
     HANDLE process;
-    bool started = ev_process_start(job, &cmdline, false, &process);
+    bool started = ev_process_start(&job, &cmdline, false, &process);
 
-    TerminateJobObject(job, 7);
+    ev_job_cancel(&job);
 
     DWORD exit_code = 0;
     EXPECT(started && WaitForSingleObject(process, 5000) == WAIT_OBJECT_0);
-    EXPECT(started && GetExitCodeProcess(process, &exit_code) && exit_code == 7);
+    EXPECT(started && GetExitCodeProcess(process, &exit_code) && exit_code == ERROR_CANCELLED);
+    EXPECT(ev_job_cancelled(&job));
     if (started)
         CloseHandle(process);
-    CloseHandle(job);
+    ev_job_close(&job);
+}
+
+static void cancelled_job_refuses_new_processes(void)
+{
+    ev_job job;
+    ev_job_create(&job);
+    ev_job_cancel(&job);
+    ev_cmdline cmdline = { 0 };
+    add_test_child(&cmdline, L"sleep");
+    HANDLE process;
+
+    bool started = ev_process_start(&job, &cmdline, false, &process);
+
+    EXPECT(!started && GetLastError() == ERROR_CANCELLED);
+    if (started) {
+        TerminateProcess(process, 1);
+        CloseHandle(process);
+    }
+    ev_job_close(&job);
 }
 
 static void closing_job_ends_its_processes(void)
 {
-    HANDLE job = ev_job_create();
+    ev_job job;
+    ev_job_create(&job);
     ev_cmdline cmdline = { 0 };
     add_test_child(&cmdline, L"sleep");
     HANDLE process;
-    bool started = ev_process_start(job, &cmdline, false, &process);
+    bool started = ev_process_start(&job, &cmdline, false, &process);
 
-    CloseHandle(job);
+    ev_job_close(&job);
 
     EXPECT(started && WaitForSingleObject(process, 5000) == WAIT_OBJECT_0);
     if (started)
@@ -240,7 +264,8 @@ void proc_tests(void)
     RUN_TEST(add_round_trips_through_command_line_to_argv);
     RUN_TEST(add_drops_argument_that_does_not_fit);
     RUN_TEST(start_refuses_command_line_that_is_too_long);
-    RUN_TEST(terminating_job_ends_its_processes);
+    RUN_TEST(cancelling_job_ends_its_processes);
+    RUN_TEST(cancelled_job_refuses_new_processes);
     RUN_TEST(closing_job_ends_its_processes);
     RUN_TEST(run_passes_each_output_line);
     RUN_TEST(run_collects_all_errors);

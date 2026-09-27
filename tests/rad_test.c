@@ -20,7 +20,7 @@ typedef struct recorder {
 } recorder;
 
 typedef struct rad_fixture {
-    HANDLE job;
+    ev_job job;
     wchar_t folder[MAX_PATH];
     wchar_t self[MAX_PATH];
     recorder recorder;
@@ -88,11 +88,12 @@ static bool logged(const recorder *recorded, const wchar_t *start)
 // Fills in a fixture in place: its run points into the fixture itself, so it cannot be returned by value.
 static void fixture_create(rad_fixture *fixture)
 {
-    *fixture = (rad_fixture){ .job = ev_job_create(), .recorder.highest_percent = -1 };
+    *fixture = (rad_fixture){ .recorder.highest_percent = -1 };
+    ev_job_create(&fixture->job);
     ev_temp_create(fixture->folder);
     GetModuleFileNameW(NULL, fixture->self, MAX_PATH);
     fixture->run = (ev_rad_run){
-        .job = fixture->job,
+        .job = &fixture->job,
         .rad = fixture->self,
         .folder = fixture->folder,
         .on_progress = record_progress,
@@ -104,7 +105,7 @@ static void fixture_create(rad_fixture *fixture)
 static void fixture_delete(rad_fixture *fixture)
 {
     ev_temp_delete(fixture->folder);
-    CloseHandle(fixture->job);
+    ev_job_close(&fixture->job);
 }
 
 static bool file_says(const wchar_t *folder, const wchar_t *name, const char *expected)

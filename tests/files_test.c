@@ -20,15 +20,16 @@ static void create_file(const wchar_t *folder, const wchar_t *name)
 
 static DWORD exited_pid(void)
 {
-    HANDLE job = ev_job_create();
+    ev_job job;
+    ev_job_create(&job);
     ev_cmdline cmdline = { 0 };
     add_test_child(&cmdline, L"output");
     HANDLE process;
-    ev_process_start(job, &cmdline, false, &process);
+    ev_process_start(&job, &cmdline, false, &process);
     WaitForSingleObject(process, INFINITE);
     DWORD pid = GetProcessId(process);
     CloseHandle(process);
-    CloseHandle(job);
+    ev_job_close(&job);
     return pid;
 }
 

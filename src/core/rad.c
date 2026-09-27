@@ -25,7 +25,11 @@ typedef struct watch_state {
     seen_window seen[16];
     size_t seen_count;
     dialog_text logged_dialog;
+    int empty_dialog_polls;
 } watch_state;
+
+// How many polls (100 ms each) a dialog may show no text before it is closed anyway.
+#define EMPTY_DIALOG_POLLS 20
 
 static bool is_file(const wchar_t *path)
 {
@@ -177,16 +181,20 @@ static BOOL CALLBACK watch_window(HWND window, LPARAM param)
             state->percent = percent;
         }
     } else if (wcscmp(class_name, L"#32770") == 0) {
-        // A dialog still closing from an earlier poll can have lost its text, so an empty read keeps the last message.
+        // A new dialog can be seen before its text is set, and one still closing from an earlier poll can have lost
+        // it, so an empty read keeps the last message and leaves the dialog open until it has stayed empty a while.
         dialog_text dialog = { 0 };
         EnumChildWindows(window, collect_text, (LPARAM)&dialog);
         if (dialog.text[0] != L'\0') {
+            state->empty_dialog_polls = 0;
             state->message[0] = L'\0';
             append(state->message, state->message_size, dialog.text);
             if (wcscmp(dialog.text, state->logged_dialog.text) != 0) {
                 log_line(state, L"dialog says \"%ls\"; closing it", dialog.text);
                 state->logged_dialog = dialog;
             }
+        } else if (++state->empty_dialog_polls < EMPTY_DIALOG_POLLS) {
+            return TRUE;
         }
         PostMessageW(window, WM_CLOSE, 0, 0);
     }

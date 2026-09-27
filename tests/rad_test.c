@@ -7,6 +7,7 @@
 #include <wchar.h>
 
 #define FAKE_PERCENT 50
+#define LATE_TEXT_MS 500
 
 typedef struct program_files {
     wchar_t x86[MAX_PATH];
@@ -127,8 +128,38 @@ static LRESULT CALLBACK fake_window_proc(HWND window, UINT message, WPARAM wpara
     return DefWindowProcW(window, message, wparam, lparam);
 }
 
+// An empty dialog template: the dialog procedure adds its one Static control.
+static const struct {
+    DLGTEMPLATE header;
+    WORD menu, window_class, title;
+} empty_dialog = { { WS_POPUP | WS_CAPTION | WS_VISIBLE, 0, 0, 0, 0, 200, 40 }, 0, 0, 0 };
+
+// Shows the text passed at creation (or none, for NULL) only after LATE_TEXT_MS, as a dialog can be seen before its
+// text is set.
+static INT_PTR CALLBACK late_dialog_proc(HWND dialog, UINT message, WPARAM wparam, LPARAM lparam)
+{
+    (void)wparam;
+    switch (message) {
+    case WM_INITDIALOG:
+        CreateWindowW(L"Static", L"", WS_CHILD | WS_VISIBLE, 10, 10, 380, 30, dialog, NULL, NULL, NULL);
+        SetWindowLongPtrW(dialog, DWLP_USER, lparam);
+        if (lparam)
+            SetTimer(dialog, 1, LATE_TEXT_MS, NULL);
+        return TRUE;
+    case WM_TIMER:
+        KillTimer(dialog, 1);
+        SetWindowTextW(GetWindow(dialog, GW_CHILD), (const wchar_t *)GetWindowLongPtrW(dialog, DWLP_USER));
+        return TRUE;
+    case WM_CLOSE:
+        EndDialog(dialog, 0);
+        return TRUE;
+    }
+    return FALSE;
+}
+
 // Stands in for radvideo64.exe Binkc or BinkMix. Binkc needs the frames folder, BinkMix needs video.bik; without it,
-// the fake shows RAD's error dialog. Its output says whether its window was visible.
+// the fake shows RAD's error dialog, or when the missing path contains late-dialog or textless-dialog, a dialog whose
+// text comes late or never. Its output says whether its window was visible.
 int rad_test_fake(void)
 {
     int argc;
@@ -144,7 +175,12 @@ int rad_test_fake(void)
     if (!exists(required)) {
         wchar_t text[MAX_PATH + 32];
         swprintf(text, ARRAYSIZE(text), L"File not found: %ls", argv[2]);
-        MessageBoxW(NULL, text, name, MB_OK);
+        if (wcsstr(argv[2], L"late-dialog"))
+            DialogBoxIndirectParamW(NULL, &empty_dialog.header, NULL, late_dialog_proc, (LPARAM)text);
+        else if (wcsstr(argv[2], L"textless-dialog"))
+            DialogBoxIndirectParamW(NULL, &empty_dialog.header, NULL, late_dialog_proc, 0);
+        else
+            MessageBoxW(NULL, text, name, MB_OK);
         return 8002;
     }
 
@@ -406,6 +442,33 @@ static void compress_reports_error_dialog(void)
     fixture_delete(&fixture);
 }
 
+static void compress_waits_for_dialog_text(void)
+{
+    rad_fixture fixture;
+    fixture_create(&fixture);
+    fixture.run.folder = L"C:\\evilvideo-missing\\late-dialog";
+    wchar_t message[256];
+
+    bool compressed = ev_rad_compress(&fixture.run, 10, message, ARRAYSIZE(message));
+
+    EXPECT(!compressed);
+    EXPECT(wcscmp(message, L"File not found: C:\\evilvideo-missing\\late-dialog\\frames\\f??????.jpg*1-10") == 0);
+    fixture_delete(&fixture);
+}
+
+static void compress_closes_dialog_that_never_shows_text(void)
+{
+    rad_fixture fixture;
+    fixture_create(&fixture);
+    fixture.run.folder = L"C:\\evilvideo-missing\\textless-dialog";
+    wchar_t message[256];
+
+    bool compressed = ev_rad_compress(&fixture.run, 10, message, ARRAYSIZE(message));
+
+    EXPECT(!compressed && wcscmp(message, L"Binkc exited unexpectedly (code 8002).") == 0);
+    fixture_delete(&fixture);
+}
+
 static void compress_reports_missing_tool(void)
 {
     rad_fixture fixture;
@@ -483,6 +546,8 @@ void rad_tests(void)
     RUN_TEST(compress_logs_command_titles_and_exit);
     RUN_TEST(compress_logs_each_title_once);
     RUN_TEST(compress_reports_error_dialog);
+    RUN_TEST(compress_waits_for_dialog_text);
+    RUN_TEST(compress_closes_dialog_that_never_shows_text);
     RUN_TEST(compress_reports_missing_tool);
     RUN_TEST(compress_works_without_callbacks);
     RUN_TEST(mix_writes_final_video);

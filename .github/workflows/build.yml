@@ -1,0 +1,30 @@
+name: Build
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Install toolchain
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends gcc-mingw-w64-x86-64 ninja-build
+
+      - name: Configure
+        run: cmake --preset mingw
+
+      - name: Build
+        run: cmake --build --preset mingw
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: evilvideo
+          path: |
+            build/mingw/evilvideo.exe
+            build/mingw/evilvideo-cli.exe
+          if-no-files-found: error

@@ -1,20 +1,31 @@
 #include "rad.h"
 
+#include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <wchar.h>
 
+typedef struct seen_window {
+    HWND window;
+    wchar_t title[128];
+} seen_window;
+
+typedef struct dialog_text {
+    wchar_t text[512];
+} dialog_text;
+
 typedef struct watch_state {
+    const ev_rad_run *run;
+    const wchar_t *tool;
     DWORD pid;
     bool done;
     int percent;
     wchar_t *message;
     size_t message_size;
+    seen_window seen[16];
+    size_t seen_count;
+    dialog_text logged_dialog;
 } watch_state;
-
-typedef struct dialog_text {
-    wchar_t text[512];
-} dialog_text;
 
 static bool is_file(const wchar_t *path)
 {
@@ -106,20 +117,59 @@ static BOOL CALLBACK collect_text(HWND child, LPARAM param)
     return TRUE;
 }
 
+static void log_line(const watch_state *state, const wchar_t *format, ...)
+{
+    if (!state->run->on_log)
+        return;
+
+    wchar_t line[2048];
+    int prefix = swprintf(line, ARRAYSIZE(line), L"%ls: ", state->tool);
+    va_list args;
+    va_start(args, format);
+    int length = vswprintf(line + prefix, ARRAYSIZE(line) - prefix, format, args);
+    va_end(args);
+    if (length >= 0)
+        state->run->on_log(line, state->run->context);
+}
+
+// Logs a window the first time it is seen, and again whenever its title changes.
+static void note_window(watch_state *state, HWND window, const wchar_t *class_name, const wchar_t *title)
+{
+    if (!state->run->on_log)
+        return;
+
+    seen_window *seen = NULL;
+    for (size_t i = 0; i < state->seen_count && !seen; i++) {
+        if (state->seen[i].window == window)
+            seen = &state->seen[i];
+    }
+    if (seen && wcscmp(seen->title, title) == 0)
+        return;
+    if (!seen && state->seen_count < ARRAYSIZE(state->seen))
+        seen = &state->seen[state->seen_count++];
+    if (seen) {
+        seen->window = window;
+        wcscpy(seen->title, title);
+    }
+    log_line(state, L"%ls window \"%ls\"", class_name, title);
+}
+
 static BOOL CALLBACK watch_window(HWND window, LPARAM param)
 {
     watch_state *state = (watch_state *)param;
     DWORD pid;
-    wchar_t class_name[16];
+    wchar_t class_name[64], title[128];
     GetWindowThreadProcessId(window, &pid);
     if (pid != state->pid || !GetClassNameW(window, class_name, ARRAYSIZE(class_name)))
         return TRUE;
+    GetWindowTextW(window, title, ARRAYSIZE(title));
+    note_window(state, window, class_name, title);
 
     if (wcscmp(class_name, L"RADClass") == 0) {
-        wchar_t title[128];
-        GetWindowTextW(window, title, ARRAYSIZE(title));
         int percent;
         if (ev_rad_parse_title(title, &percent)) {
+            if (!state->done)
+                log_line(state, L"finished; closing its window");
             state->done = true;
             PostMessageW(window, WM_CLOSE, 0, 0);
         } else if (percent >= 0) {
@@ -132,6 +182,10 @@ static BOOL CALLBACK watch_window(HWND window, LPARAM param)
         if (dialog.text[0] != L'\0') {
             state->message[0] = L'\0';
             append(state->message, state->message_size, dialog.text);
+            if (wcscmp(dialog.text, state->logged_dialog.text) != 0) {
+                log_line(state, L"dialog says \"%ls\"; closing it", dialog.text);
+                state->logged_dialog = dialog;
+            }
         }
         PostMessageW(window, WM_CLOSE, 0, 0);
     }
@@ -152,34 +206,40 @@ static void describe_error(wchar_t *message, size_t size, const wchar_t *what, D
         message[--length] = L'\0';
 }
 
-static bool run(HANDLE job, ev_cmdline *cmdline, const wchar_t *tool, const wchar_t *output,
-                ev_rad_progress on_progress, void *context, wchar_t *message, size_t message_size)
+static bool run_tool(const ev_rad_run *run, ev_cmdline *cmdline, const wchar_t *tool, const wchar_t *output,
+                     wchar_t *message, size_t message_size)
 {
-    message[0] = L'\0';
-    HANDLE process;
-    if (!ev_process_start(job, cmdline, &process)) {
-        describe_error(message, message_size, L"Could not start RAD Video Tools", GetLastError());
-        return false;
-    }
-
     watch_state state = {
-        .pid = GetProcessId(process),
+        .run = run,
+        .tool = tool,
         .percent = -1,
         .message = message,
         .message_size = message_size,
     };
+    message[0] = L'\0';
+    log_line(&state, L"running %ls", cmdline->text);
+
+    ULONGLONG start = GetTickCount64();
+    HANDLE process;
+    if (!ev_process_start(run->job, cmdline, run->visible, &process)) {
+        describe_error(message, message_size, L"Could not start RAD Video Tools", GetLastError());
+        return false;
+    }
+
+    state.pid = GetProcessId(process);
     int reported = -1;
     while (WaitForSingleObject(process, 100) == WAIT_TIMEOUT) {
         EnumWindows(watch_window, (LPARAM)&state);
-        if (on_progress && state.percent != reported) {
+        if (run->on_progress && state.percent != reported) {
             reported = state.percent;
-            on_progress(reported, context);
+            run->on_progress(reported, run->context);
         }
     }
 
     DWORD exit_code = 1;
     GetExitCodeProcess(process, &exit_code);
     CloseHandle(process);
+    log_line(&state, L"exited with code %lu after %.1f s", exit_code, (GetTickCount64() - start) / 1000.0);
     if (state.done && exit_code == 0 && is_file(output)) {
         message[0] = L'\0';
         return true;
@@ -189,21 +249,20 @@ static bool run(HANDLE job, ev_cmdline *cmdline, const wchar_t *tool, const wcha
     return false;
 }
 
-bool ev_rad_compress(HANDLE job, const wchar_t *rad, const wchar_t *folder, int frames, ev_rad_progress on_progress,
-                     void *context, wchar_t *message, size_t message_size)
+bool ev_rad_compress(const ev_rad_run *run, int frames, wchar_t *message, size_t message_size)
 {
     ev_cmdline cmdline = { 0 };
-    ev_rad_binkc_args(&cmdline, rad, folder, frames);
+    ev_rad_binkc_args(&cmdline, run->rad, run->folder, frames);
     wchar_t output[MAX_PATH + 16];
-    swprintf(output, ARRAYSIZE(output), L"%ls\\video.bik", folder);
-    return run(job, &cmdline, L"Binkc", output, on_progress, context, message, message_size);
+    swprintf(output, ARRAYSIZE(output), L"%ls\\video.bik", run->folder);
+    return run_tool(run, &cmdline, L"Binkc", output, message, message_size);
 }
 
-bool ev_rad_mix(HANDLE job, const wchar_t *rad, const wchar_t *folder, wchar_t *message, size_t message_size)
+bool ev_rad_mix(const ev_rad_run *run, wchar_t *message, size_t message_size)
 {
     ev_cmdline cmdline = { 0 };
-    ev_rad_binkmix_args(&cmdline, rad, folder);
+    ev_rad_binkmix_args(&cmdline, run->rad, run->folder);
     wchar_t output[MAX_PATH + 16];
-    swprintf(output, ARRAYSIZE(output), L"%ls\\final.bik", folder);
-    return run(job, &cmdline, L"BinkMix", output, NULL, NULL, message, message_size);
+    swprintf(output, ARRAYSIZE(output), L"%ls\\final.bik", run->folder);
+    return run_tool(run, &cmdline, L"BinkMix", output, message, message_size);
 }

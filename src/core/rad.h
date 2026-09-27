@@ -3,12 +3,42 @@
 #include "proc.h"
 
 /**
+ * Receives one line of the detailed log, for diagnosing a failing conversion.
+ *
+ * @param line The line, null-terminated, without a line break.
+ * @param context The context the log callback was registered with.
+ */
+typedef void (*ev_log_callback)(const wchar_t *line, void *context);
+
+/**
  * Receives Binkc's progress.
  *
  * @param percent How far Binkc has got, from 0 to 100.
- * @param context The context passed to ev_rad_compress.
+ * @param context The context of the ev_rad_run.
  */
 typedef void (*ev_rad_progress)(int percent, void *context);
+
+/** What ev_rad_compress and ev_rad_mix run on, and how. */
+typedef struct ev_rad_run {
+    /** The job to run the tool in. Terminating the job ends the run early, as a failure. */
+    HANDLE job;
+    /** The full path to radvideo64.exe. */
+    const wchar_t *rad;
+    /** A folder from ev_temp_create. */
+    const wchar_t *folder;
+    /** Whether to show the tool's windows, without taking focus, instead of hiding them. */
+    bool visible;
+    /** Called with each new percentage of Binkc; may be NULL. BinkMix reports none. */
+    ev_rad_progress on_progress;
+    /**
+     * Called with each line of the detailed log; may be NULL. The log has the command line; every window of the tool
+     * and each change of its title, with the window class; each error dialog's text; the closing of the window once
+     * the tool is done; and the exit code and run time.
+     */
+    ev_log_callback on_log;
+    /** Passed to on_progress and on_log. */
+    void *context;
+} ev_rad_run;
 
 /**
  * Finds radvideo64.exe.
@@ -52,33 +82,26 @@ void ev_rad_binkmix_args(ev_cmdline *cmdline, const wchar_t *rad, const wchar_t 
 bool ev_rad_parse_title(const wchar_t *title, int *percent);
 
 /**
- * Runs Binkc on a temporary folder's frames, hidden, and waits until video.bik is complete.
+ * Runs Binkc on a temporary folder's frames and waits until video.bik is complete.
  *
  * The tool never exits on its own, so this watches its windows: it reports the title's percentage, closes the window
  * once the title reports it is done, and closes any error dialog, keeping its text as the failure message.
  *
- * @param job The job to run Binkc in. Terminating the job ends the run early, as a failure.
- * @param rad The full path to radvideo64.exe.
- * @param folder A folder from ev_temp_create.
- * @param frames The number of frames in it, from ev_frames_count.
- * @param on_progress Called with each new percentage; may be NULL.
- * @param context Passed to on_progress.
+ * @param run What to run on, and how.
+ * @param frames The number of frames in the folder, from ev_frames_count.
  * @param message Receives why the run failed, or an empty string on success.
  * @param message_size The size of message in characters.
  * @return Whether video.bik was written.
  */
-bool ev_rad_compress(HANDLE job, const wchar_t *rad, const wchar_t *folder, int frames, ev_rad_progress on_progress,
-                     void *context, wchar_t *message, size_t message_size);
+bool ev_rad_compress(const ev_rad_run *run, int frames, wchar_t *message, size_t message_size);
 
 /**
- * Runs BinkMix on a temporary folder, hidden, and waits until final.bik is complete. It is watched as ev_rad_compress
+ * Runs BinkMix on a temporary folder and waits until final.bik is complete. It is watched as ev_rad_compress
  * describes, but reports no progress: it finishes in about a second.
  *
- * @param job The job to run BinkMix in. Terminating the job ends the run early, as a failure.
- * @param rad The full path to radvideo64.exe.
- * @param folder A folder from ev_temp_create, holding video.bik and audio.wav.
+ * @param run What to run on, and how. The folder must hold video.bik and audio.wav.
  * @param message Receives why the run failed, or an empty string on success.
  * @param message_size The size of message in characters.
  * @return Whether final.bik was written.
  */
-bool ev_rad_mix(HANDLE job, const wchar_t *rad, const wchar_t *folder, wchar_t *message, size_t message_size);
+bool ev_rad_mix(const ev_rad_run *run, wchar_t *message, size_t message_size);

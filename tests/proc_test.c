@@ -160,7 +160,7 @@ static void start_refuses_command_line_that_is_too_long(void)
     ev_cmdline cmdline = { .too_long = true };
     HANDLE process;
 
-    bool started = ev_process_start(job, &cmdline, &process);
+    bool started = ev_process_start(job, &cmdline, false, &process);
 
     EXPECT(!started && GetLastError() == ERROR_FILENAME_EXCED_RANGE);
     CloseHandle(job);
@@ -172,7 +172,7 @@ static void terminating_job_ends_its_processes(void)
     ev_cmdline cmdline = { 0 };
     add_test_child(&cmdline, L"sleep");
     HANDLE process;
-    bool started = ev_process_start(job, &cmdline, &process);
+    bool started = ev_process_start(job, &cmdline, false, &process);
 
     TerminateJobObject(job, 7);
 
@@ -190,7 +190,7 @@ static void closing_job_ends_its_processes(void)
     ev_cmdline cmdline = { 0 };
     add_test_child(&cmdline, L"sleep");
     HANDLE process;
-    bool started = ev_process_start(job, &cmdline, &process);
+    bool started = ev_process_start(job, &cmdline, false, &process);
 
     CloseHandle(job);
 

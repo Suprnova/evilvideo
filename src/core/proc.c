@@ -84,7 +84,7 @@ HANDLE ev_job_create(void)
     return job;
 }
 
-static bool spawn(HANDLE job, ev_cmdline *cmdline, HANDLE output, HANDLE errors, HANDLE *process)
+static bool spawn(HANDLE job, ev_cmdline *cmdline, bool visible, HANDLE output, HANDLE errors, HANDLE *process)
 {
     if (cmdline->too_long) {
         SetLastError(ERROR_FILENAME_EXCED_RANGE);
@@ -95,7 +95,7 @@ static bool spawn(HANDLE job, ev_cmdline *cmdline, HANDLE output, HANDLE errors,
     STARTUPINFOW startup = {
         .cb = sizeof startup,
         .dwFlags = STARTF_USESHOWWINDOW | (redirect ? STARTF_USESTDHANDLES : 0),
-        .wShowWindow = SW_HIDE,
+        .wShowWindow = visible ? SW_SHOWNOACTIVATE : SW_HIDE,
         .hStdOutput = output,
         .hStdError = errors,
     };
@@ -119,9 +119,9 @@ static bool spawn(HANDLE job, ev_cmdline *cmdline, HANDLE output, HANDLE errors,
     return true;
 }
 
-bool ev_process_start(HANDLE job, ev_cmdline *cmdline, HANDLE *process)
+bool ev_process_start(HANDLE job, ev_cmdline *cmdline, bool visible, HANDLE *process)
 {
-    return spawn(job, cmdline, NULL, NULL, process);
+    return spawn(job, cmdline, visible, NULL, NULL, process);
 }
 
 static bool create_pipe(HANDLE *read, HANDLE *write)
@@ -218,7 +218,7 @@ bool ev_process_run(HANDLE job, ev_cmdline *cmdline, ev_line_callback on_line, v
 
     HANDLE thread = CreateThread(NULL, 0, drain_thread, &errors_drain, 0, NULL);
     HANDLE process = NULL;
-    bool ok = thread && spawn(job, cmdline, output_write, errors_write, &process);
+    bool ok = thread && spawn(job, cmdline, false, output_write, errors_write, &process);
     DWORD error = GetLastError();
 
     // Once only the child holds the write ends, the reads end when it exits.

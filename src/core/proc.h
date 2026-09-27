@@ -50,16 +50,17 @@ HANDLE ev_job_create(void);
 /**
  * Starts a program inside a job without waiting for it.
  *
- * The program starts suspended, is assigned to the job, and only then runs, so it cannot escape the job. Its window
- * is hidden and it gets no console.
+ * The program starts suspended, is assigned to the job, and only then runs, so it cannot escape the job. It gets no
+ * console, and its window starts hidden unless asked otherwise.
  *
  * @param job The job to run the program in.
  * @param cmdline The command line, starting with the program's full path. CreateProcessW may modify its text.
+ * @param visible Whether to show the program's window, without taking focus from the current window.
  * @param process Receives the process handle. Close it with CloseHandle.
  * @return false if the program could not be started; GetLastError has the reason, which is
  *         ERROR_FILENAME_EXCED_RANGE when the command line is too long.
  */
-bool ev_process_start(HANDLE job, ev_cmdline *cmdline, HANDLE *process);
+bool ev_process_start(HANDLE job, ev_cmdline *cmdline, bool visible, HANDLE *process);
 
 /**
  * Runs a console program inside a job, as ev_process_start does, and waits for it to exit.

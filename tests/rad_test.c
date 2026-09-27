@@ -3,6 +3,7 @@
 #include "test.h"
 
 #include <shellapi.h>
+#include <string.h>
 #include <wchar.h>
 
 #define FAKE_PERCENT 50
@@ -12,6 +13,20 @@ typedef struct program_files {
     wchar_t native[MAX_PATH];
 } program_files;
 
+typedef struct recorder {
+    int highest_percent;
+    wchar_t log[16][512];
+    size_t log_count;
+} recorder;
+
+typedef struct rad_fixture {
+    HANDLE job;
+    wchar_t folder[MAX_PATH];
+    wchar_t self[MAX_PATH];
+    recorder recorder;
+    ev_rad_run run;
+} rad_fixture;
+
 static bool exists(const wchar_t *path)
 {
     return GetFileAttributesW(path) != INVALID_FILE_ATTRIBUTES;
@@ -20,11 +35,6 @@ static bool exists(const wchar_t *path)
 static void create_file(const wchar_t *path)
 {
     CloseHandle(CreateFileW(path, GENERIC_WRITE, 0, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL));
-}
-
-static void self_path(wchar_t path[MAX_PATH])
-{
-    GetModuleFileNameW(NULL, path, MAX_PATH);
 }
 
 static program_files replace_program_files(const wchar_t *folder)
@@ -54,9 +64,59 @@ static void fake_install(const wchar_t *folder, wchar_t rad[MAX_PATH])
 
 static void record_progress(int percent, void *context)
 {
-    int *highest = context;
-    if (percent > *highest)
-        *highest = percent;
+    recorder *recorded = context;
+    if (percent > recorded->highest_percent)
+        recorded->highest_percent = percent;
+}
+
+static void record_log(const wchar_t *line, void *context)
+{
+    recorder *recorded = context;
+    if (recorded->log_count < ARRAYSIZE(recorded->log))
+        swprintf(recorded->log[recorded->log_count++], ARRAYSIZE(recorded->log[0]), L"%ls", line);
+}
+
+static bool logged(const recorder *recorded, const wchar_t *start)
+{
+    for (size_t i = 0; i < recorded->log_count; i++) {
+        if (wcsncmp(recorded->log[i], start, wcslen(start)) == 0)
+            return true;
+    }
+    return false;
+}
+
+// Fills in a fixture in place: its run points into the fixture itself, so it cannot be returned by value.
+static void fixture_create(rad_fixture *fixture)
+{
+    *fixture = (rad_fixture){ .job = ev_job_create(), .recorder.highest_percent = -1 };
+    ev_temp_create(fixture->folder);
+    GetModuleFileNameW(NULL, fixture->self, MAX_PATH);
+    fixture->run = (ev_rad_run){
+        .job = fixture->job,
+        .rad = fixture->self,
+        .folder = fixture->folder,
+        .on_progress = record_progress,
+        .on_log = record_log,
+        .context = &fixture->recorder,
+    };
+}
+
+static void fixture_delete(rad_fixture *fixture)
+{
+    ev_temp_delete(fixture->folder);
+    CloseHandle(fixture->job);
+}
+
+static bool file_says(const wchar_t *folder, const wchar_t *name, const char *expected)
+{
+    wchar_t path[MAX_PATH];
+    swprintf(path, MAX_PATH, L"%ls\\%ls", folder, name);
+    HANDLE file = CreateFileW(path, GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, 0, NULL);
+    char text[16] = { 0 };
+    DWORD read = 0;
+    ReadFile(file, text, sizeof text - 1, &read, NULL);
+    CloseHandle(file);
+    return strcmp(text, expected) == 0;
 }
 
 static LRESULT CALLBACK fake_window_proc(HWND window, UINT message, WPARAM wparam, LPARAM lparam)
@@ -67,7 +127,7 @@ static LRESULT CALLBACK fake_window_proc(HWND window, UINT message, WPARAM wpara
 }
 
 // Stands in for radvideo64.exe Binkc or BinkMix. Binkc needs the frames folder, BinkMix needs video.bik; without it,
-// the fake shows RAD's error dialog.
+// the fake shows RAD's error dialog. Its output says whether its window was visible.
 int rad_test_fake(void)
 {
     int argc;
@@ -96,9 +156,17 @@ int rad_test_fake(void)
     else
         wcscpy(title, name);
     HWND window = CreateWindowW(L"RADClass", title, WS_OVERLAPPEDWINDOW, 0, 0, 100, 100, NULL, NULL, instance, NULL);
+    // Shows the window as WinMain's nCmdShow would, which Wine honors; it ignores the startup state for SW_SHOWDEFAULT.
+    STARTUPINFOW startup;
+    GetStartupInfoW(&startup);
+    ShowWindow(window, startup.dwFlags & STARTF_USESHOWWINDOW ? startup.wShowWindow : SW_SHOWDEFAULT);
 
     Sleep(300);
-    create_file(output);
+    HANDLE file = CreateFileW(output, GENERIC_WRITE, 0, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
+    const char *visibility = IsWindowVisible(window) ? "visible" : "hidden";
+    DWORD written;
+    WriteFile(file, visibility, (DWORD)strlen(visibility), &written, NULL);
+    CloseHandle(file);
     swprintf(title, ARRAYSIZE(title), L"%ls - Done!", name);
     SetWindowTextW(window, title);
 
@@ -249,79 +317,148 @@ static void parse_title_ignores_unrelated_titles(void)
 
 static void compress_reports_progress_and_writes_video(void)
 {
-    HANDLE job = ev_job_create();
-    wchar_t folder[MAX_PATH], self[MAX_PATH], message[256], video[MAX_PATH];
-    ev_temp_create(folder);
-    self_path(self);
-    int highest = -1;
+    rad_fixture fixture;
+    fixture_create(&fixture);
+    wchar_t message[256], video[MAX_PATH];
 
-    bool compressed = ev_rad_compress(job, self, folder, 10, record_progress, &highest, message, ARRAYSIZE(message));
+    bool compressed = ev_rad_compress(&fixture.run, 10, message, ARRAYSIZE(message));
 
-    swprintf(video, MAX_PATH, L"%ls\\video.bik", folder);
+    swprintf(video, MAX_PATH, L"%ls\\video.bik", fixture.folder);
     EXPECT(compressed && message[0] == L'\0');
-    EXPECT(highest == FAKE_PERCENT);
+    EXPECT(fixture.recorder.highest_percent == FAKE_PERCENT);
     EXPECT(exists(video));
-    ev_temp_delete(folder);
-    CloseHandle(job);
+    fixture_delete(&fixture);
+}
+
+static void compress_hides_window_by_default(void)
+{
+    rad_fixture fixture;
+    fixture_create(&fixture);
+    wchar_t message[256];
+
+    ev_rad_compress(&fixture.run, 10, message, ARRAYSIZE(message));
+
+    EXPECT(file_says(fixture.folder, L"video.bik", "hidden"));
+    fixture_delete(&fixture);
+}
+
+static void compress_shows_window_when_visible(void)
+{
+    rad_fixture fixture;
+    fixture_create(&fixture);
+    fixture.run.visible = true;
+    wchar_t message[256];
+
+    ev_rad_compress(&fixture.run, 10, message, ARRAYSIZE(message));
+
+    EXPECT(file_says(fixture.folder, L"video.bik", "visible"));
+    fixture_delete(&fixture);
+}
+
+static void compress_logs_command_titles_and_exit(void)
+{
+    rad_fixture fixture;
+    fixture_create(&fixture);
+    wchar_t message[256], running[MAX_PATH + 32];
+    swprintf(running, ARRAYSIZE(running), L"Binkc: running %ls Binkc ", fixture.self);
+
+    ev_rad_compress(&fixture.run, 10, message, ARRAYSIZE(message));
+
+    EXPECT(logged(&fixture.recorder, running));
+    EXPECT(logged(&fixture.recorder, L"Binkc: RADClass window \"50% - Bink Video Compressor\""));
+    EXPECT(logged(&fixture.recorder, L"Binkc: RADClass window \"Bink Video Compressor - Done!\""));
+    EXPECT(logged(&fixture.recorder, L"Binkc: finished; closing its window"));
+    EXPECT(logged(&fixture.recorder, L"Binkc: exited with code 0 after "));
+    fixture_delete(&fixture);
+}
+
+static void compress_logs_each_title_once(void)
+{
+    rad_fixture fixture;
+    fixture_create(&fixture);
+    wchar_t message[256];
+
+    ev_rad_compress(&fixture.run, 10, message, ARRAYSIZE(message));
+
+    int count = 0;
+    for (size_t i = 0; i < fixture.recorder.log_count; i++)
+        count += wcscmp(fixture.recorder.log[i], L"Binkc: RADClass window \"50% - Bink Video Compressor\"") == 0;
+    EXPECT(count == 1);
+    fixture_delete(&fixture);
 }
 
 static void compress_reports_error_dialog(void)
 {
-    HANDLE job = ev_job_create();
-    wchar_t self[MAX_PATH], message[256];
-    self_path(self);
+    rad_fixture fixture;
+    fixture_create(&fixture);
+    fixture.run.folder = L"C:\\evilvideo-missing";
+    wchar_t message[256];
 
-    bool compressed = ev_rad_compress(job, self, L"C:\\evilvideo-missing", 10, NULL, NULL, message, ARRAYSIZE(message));
+    bool compressed = ev_rad_compress(&fixture.run, 10, message, ARRAYSIZE(message));
 
     EXPECT(!compressed);
     EXPECT(wcscmp(message, L"File not found: C:\\evilvideo-missing\\frames\\f??????.jpg*1-10") == 0);
-    CloseHandle(job);
+    EXPECT(logged(&fixture.recorder, L"Binkc: #32770 window \"Bink Video Compressor\""));
+    EXPECT(logged(&fixture.recorder,
+                  L"Binkc: dialog says \"File not found: C:\\evilvideo-missing\\frames\\f??????.jpg*1-10\"; closing it"));
+    EXPECT(logged(&fixture.recorder, L"Binkc: exited with code 8002 after "));
+    fixture_delete(&fixture);
 }
 
 static void compress_reports_missing_tool(void)
 {
-    HANDLE job = ev_job_create();
-    wchar_t folder[MAX_PATH], message[256];
-    ev_temp_create(folder);
+    rad_fixture fixture;
+    fixture_create(&fixture);
+    fixture.run.rad = L"C:\\evilvideo-missing\\radvideo64.exe";
+    wchar_t message[256];
 
-    bool compressed = ev_rad_compress(job, L"C:\\evilvideo-missing\\radvideo64.exe", folder, 10, NULL, NULL, message,
-                                      ARRAYSIZE(message));
+    bool compressed = ev_rad_compress(&fixture.run, 10, message, ARRAYSIZE(message));
 
     EXPECT(!compressed && wcsncmp(message, L"Could not start RAD Video Tools: ", 33) == 0);
-    ev_temp_delete(folder);
-    CloseHandle(job);
+    fixture_delete(&fixture);
+}
+
+static void compress_works_without_callbacks(void)
+{
+    rad_fixture fixture;
+    fixture_create(&fixture);
+    fixture.run.on_progress = NULL;
+    fixture.run.on_log = NULL;
+    wchar_t message[256];
+
+    bool compressed = ev_rad_compress(&fixture.run, 10, message, ARRAYSIZE(message));
+
+    EXPECT(compressed);
+    fixture_delete(&fixture);
 }
 
 static void mix_writes_final_video(void)
 {
-    HANDLE job = ev_job_create();
-    wchar_t folder[MAX_PATH], self[MAX_PATH], message[256], path[MAX_PATH];
-    ev_temp_create(folder);
-    self_path(self);
-    swprintf(path, MAX_PATH, L"%ls\\video.bik", folder);
+    rad_fixture fixture;
+    fixture_create(&fixture);
+    wchar_t message[256], path[MAX_PATH];
+    swprintf(path, MAX_PATH, L"%ls\\video.bik", fixture.folder);
     create_file(path);
 
-    bool mixed = ev_rad_mix(job, self, folder, message, ARRAYSIZE(message));
+    bool mixed = ev_rad_mix(&fixture.run, message, ARRAYSIZE(message));
 
-    swprintf(path, MAX_PATH, L"%ls\\final.bik", folder);
+    swprintf(path, MAX_PATH, L"%ls\\final.bik", fixture.folder);
     EXPECT(mixed && message[0] == L'\0');
     EXPECT(exists(path));
-    ev_temp_delete(folder);
-    CloseHandle(job);
+    EXPECT(fixture.recorder.highest_percent == -1);
+    fixture_delete(&fixture);
 }
 
 static void mix_reports_error_dialog(void)
 {
-    HANDLE job = ev_job_create();
-    wchar_t folder[MAX_PATH], self[MAX_PATH], message[256];
-    ev_temp_create(folder);
-    self_path(self);
+    rad_fixture fixture;
+    fixture_create(&fixture);
+    wchar_t message[256];
 
-    bool mixed = ev_rad_mix(job, self, folder, message, ARRAYSIZE(message));
+    bool mixed = ev_rad_mix(&fixture.run, message, ARRAYSIZE(message));
 
     EXPECT(!mixed && wcsncmp(message, L"File not found: ", 16) == 0);
-    ev_temp_delete(folder);
-    CloseHandle(job);
+    fixture_delete(&fixture);
 }
 
 void rad_tests(void)
@@ -340,8 +477,13 @@ void rad_tests(void)
     RUN_TEST(parse_title_ignores_title_without_state);
     RUN_TEST(parse_title_ignores_unrelated_titles);
     RUN_TEST(compress_reports_progress_and_writes_video);
+    RUN_TEST(compress_hides_window_by_default);
+    RUN_TEST(compress_shows_window_when_visible);
+    RUN_TEST(compress_logs_command_titles_and_exit);
+    RUN_TEST(compress_logs_each_title_once);
     RUN_TEST(compress_reports_error_dialog);
     RUN_TEST(compress_reports_missing_tool);
+    RUN_TEST(compress_works_without_callbacks);
     RUN_TEST(mix_writes_final_video);
     RUN_TEST(mix_reports_error_dialog);
 }

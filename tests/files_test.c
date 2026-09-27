@@ -24,7 +24,7 @@ static DWORD exited_pid(void)
     ev_cmdline cmdline = { 0 };
     add_test_child(&cmdline, L"output");
     HANDLE process;
-    ev_process_start(job, &cmdline, &process);
+    ev_process_start(job, &cmdline, false, &process);
     WaitForSingleObject(process, INFINITE);
     DWORD pid = GetProcessId(process);
     CloseHandle(process);

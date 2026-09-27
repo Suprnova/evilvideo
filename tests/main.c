@@ -14,6 +14,7 @@ void run_test(const char *name, void (*test)(void))
         failures++;
 }
 
+void cli_tests(void);
 void games_tests(void);
 void ffmpeg_tests(void);
 void files_tests(void);
@@ -39,6 +40,7 @@ int main(int argc, char **argv)
     files_tests();
     rad_tests();
     convert_tests();
+    cli_tests();
 
     printf("%d failed\n", failures);
     return failures == 0 ? 0 : 1;

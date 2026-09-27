@@ -12,6 +12,10 @@ typedef struct watch_state {
     size_t message_size;
 } watch_state;
 
+typedef struct dialog_text {
+    wchar_t text[512];
+} dialog_text;
+
 static bool is_file(const wchar_t *path)
 {
     DWORD attributes = GetFileAttributesW(path);
@@ -92,13 +96,13 @@ static void append(wchar_t *buffer, size_t size, const wchar_t *text)
 
 static BOOL CALLBACK collect_text(HWND child, LPARAM param)
 {
-    watch_state *state = (watch_state *)param;
+    dialog_text *dialog = (dialog_text *)param;
     wchar_t class_name[16], text[512];
     DWORD_PTR length;
     if (GetClassNameW(child, class_name, ARRAYSIZE(class_name)) && _wcsicmp(class_name, L"Static") == 0 &&
         SendMessageTimeoutW(child, WM_GETTEXT, ARRAYSIZE(text), (LPARAM)text, SMTO_ABORTIFHUNG, 1000, &length) &&
         length > 0)
-        append(state->message, state->message_size, text);
+        append(dialog->text, ARRAYSIZE(dialog->text), text);
     return TRUE;
 }
 
@@ -122,8 +126,13 @@ static BOOL CALLBACK watch_window(HWND window, LPARAM param)
             state->percent = percent;
         }
     } else if (wcscmp(class_name, L"#32770") == 0) {
-        state->message[0] = L'\0';
-        EnumChildWindows(window, collect_text, param);
+        // A dialog still closing from an earlier poll can have lost its text, so an empty read keeps the last message.
+        dialog_text dialog = { 0 };
+        EnumChildWindows(window, collect_text, (LPARAM)&dialog);
+        if (dialog.text[0] != L'\0') {
+            state->message[0] = L'\0';
+            append(state->message, state->message_size, dialog.text);
+        }
         PostMessageW(window, WM_CLOSE, 0, 0);
     }
     return TRUE;

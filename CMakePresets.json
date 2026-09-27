@@ -23,7 +23,8 @@
                 "CMAKE_SYSTEM_NAME": "Windows",
                 "CMAKE_SYSTEM_PROCESSOR": "x86_64",
                 "CMAKE_C_COMPILER": "x86_64-w64-mingw32-gcc",
-                "CMAKE_RC_COMPILER": "x86_64-w64-mingw32-windres"
+                "CMAKE_RC_COMPILER": "x86_64-w64-mingw32-windres",
+                "CMAKE_CROSSCOMPILING_EMULATOR": "wine"
             }
         }
     ],
@@ -36,6 +37,19 @@
         {
             "name": "mingw",
             "configurePreset": "mingw"
+        }
+    ],
+    "testPresets": [
+        {
+            "name": "msvc",
+            "configurePreset": "msvc",
+            "configuration": "MinSizeRel",
+            "output": { "outputOnFailure": true }
+        },
+        {
+            "name": "mingw",
+            "configurePreset": "mingw",
+            "output": { "outputOnFailure": true }
         }
     ]
 }

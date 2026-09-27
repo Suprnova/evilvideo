@@ -5,7 +5,7 @@ static const char help[] =
     "\n"
     "Converts videos to Bink for Heavy Iron Studios' EvilEngine games.\n"
     "\n"
-    "  -g, --game <id>        target game: bfbb, tssm, n100f, incredibles, rotu (required)\n"
+    "  -g, --game <id>        target game: n100f, bfbb, tssm, incredibles, rotu (required)\n"
     "  -o, --output <path>    output file (one input) or folder (several inputs);\n"
     "                         default: next to each input, with a .bik extension\n"
     "      --stretch          stretch to fill the frame instead of letterboxing\n"

@@ -19,5 +19,15 @@ else()
     add_link_options(-static -Wl,--gc-sections $<$<NOT:$<CONFIG:Debug>>:-s>)
 endif()
 
+add_library(evcore STATIC src/core/games.c)
+target_include_directories(evcore PUBLIC src/core)
+
 add_executable(evilvideo WIN32 src/gui/main.c src/gui/evilvideo.rc)
 add_executable(evilvideo-cli src/cli/main.c src/cli/evilvideo-cli.rc)
+target_link_libraries(evilvideo PRIVATE evcore)
+target_link_libraries(evilvideo-cli PRIVATE evcore)
+
+enable_testing()
+add_executable(evtests tests/main.c tests/games_test.c)
+target_link_libraries(evtests PRIVATE evcore)
+add_test(NAME unit COMMAND evtests)

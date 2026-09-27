@@ -13,13 +13,18 @@ jobs:
       - name: Install toolchain
         run: |
           sudo apt-get update
-          sudo apt-get install -y --no-install-recommends gcc-mingw-w64-x86-64 ninja-build
+          sudo apt-get install -y --no-install-recommends gcc-mingw-w64-x86-64 ninja-build wine wine64
 
       - name: Configure
         run: cmake --preset mingw
 
       - name: Build
         run: cmake --build --preset mingw
+
+      - name: Test
+        run: ctest --preset mingw
+        env:
+          WINEDEBUG: -all
 
       - uses: actions/upload-artifact@v7
         with:

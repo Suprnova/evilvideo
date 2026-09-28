@@ -331,7 +331,8 @@ int wmain(int argc, wchar_t **argv)
         return 0;
     }
     if (options.version) {
-        print(&out, L"evilvideo-cli %ls\n", L"" EV_VERSION_STRING);
+        print(&out, L"evilvideo-cli %ls\nThis software uses libraries from the FFmpeg project under the LGPLv3.\n",
+              L"" EV_VERSION_STRING);
         return 0;
     }
 

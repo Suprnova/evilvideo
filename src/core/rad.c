@@ -137,10 +137,11 @@ static void log_line(const watch_state *state, const wchar_t *format, ...)
 }
 
 // Logs a window the first time it is seen, and again whenever its title changes. The input method windows Windows
-// gives every GUI program are left out.
+// and Wine give every GUI program are left out.
 static void note_window(watch_state *state, HWND window, const wchar_t *class_name, const wchar_t *title)
 {
-    if (!state->run->on_log || wcscmp(class_name, L"IME") == 0 || wcscmp(class_name, L"MSCTFIME UI") == 0)
+    if (!state->run->on_log || wcscmp(class_name, L"IME") == 0 || wcscmp(class_name, L"MSCTFIME UI") == 0 ||
+        wcscmp(class_name, L"Wine IME") == 0)
         return;
 
     seen_window *seen = NULL;

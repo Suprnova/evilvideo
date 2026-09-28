@@ -13,7 +13,18 @@ jobs:
       - name: Install toolchain
         run: |
           sudo apt-get update
-          sudo apt-get install -y --no-install-recommends gcc-mingw-w64-x86-64 ninja-build wine wine64 xvfb
+          sudo apt-get install -y --no-install-recommends gcc-mingw-w64-x86-64 ninja-build nasm pkg-config meson wine wine64 xvfb
+
+      - name: Cache ffmpeg
+        id: ffmpeg-cache
+        uses: actions/cache@v6
+        with:
+          path: build/ffmpeg
+          key: ffmpeg-${{ hashFiles('ffmpeg/build.sh') }}
+
+      - name: Build ffmpeg
+        if: steps.ffmpeg-cache.outputs.cache-hit != 'true'
+        run: ffmpeg/build.sh
 
       - name: Configure
         run: cmake --preset mingw
@@ -33,4 +44,5 @@ jobs:
           path: |
             build/mingw/evilvideo.exe
             build/mingw/evilvideo-cli.exe
+            build/ffmpeg/
           if-no-files-found: error

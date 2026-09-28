@@ -6,5 +6,8 @@ pkgs.mkShell {
     cmake
     ninja
     wineWowPackages.stable
+    nasm
+    pkg-config
+    meson
   ];
 }

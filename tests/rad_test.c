@@ -266,6 +266,20 @@ static void locate_falls_back_to_standard_install(void)
     ev_temp_delete(folder);
 }
 
+static void locate_treats_empty_saved_path_as_none(void)
+{
+    wchar_t folder[MAX_PATH], rad[MAX_PATH], path[MAX_PATH];
+    ev_temp_create(folder);
+    fake_install(folder, rad);
+    program_files original = replace_program_files(folder);
+
+    bool found = ev_rad_locate(NULL, L"", path);
+
+    restore_program_files(&original);
+    EXPECT(found && wcscmp(path, rad) == 0);
+    ev_temp_delete(folder);
+}
+
 static void locate_fails_when_not_installed(void)
 {
     wchar_t folder[MAX_PATH], path[MAX_PATH];
@@ -531,6 +545,7 @@ void rad_tests(void)
     RUN_TEST(locate_rejects_missing_explicit_path);
     RUN_TEST(locate_uses_saved_path);
     RUN_TEST(locate_falls_back_to_standard_install);
+    RUN_TEST(locate_treats_empty_saved_path_as_none);
     RUN_TEST(locate_fails_when_not_installed);
     RUN_TEST(binkc_args_compress_frame_sequence);
     RUN_TEST(binkc_args_quote_folder_with_spaces);

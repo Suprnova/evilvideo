@@ -2,6 +2,7 @@
 #include "convert.h"
 #include "ffmpeg.h"
 #include "files.h"
+#include "settings.h"
 #include "version.h"
 
 #include <stdarg.h>
@@ -20,7 +21,7 @@ static const wchar_t help[] =
     L"      --stretch          stretch to fill the frame instead of letterboxing\n"
     L"      --trim <from>-<to> keep only this range, in seconds (e.g. 1.5-12)\n"
     L"  -y, --overwrite        replace existing outputs instead of skipping them\n"
-    L"      --rad <path>       radvideo64.exe to use (default: the standard install)\n"
+    L"      --rad <path>       radvideo64.exe to use (default: saved setting, then the standard install)\n"
     L"      --show-rad         show the RAD Video Tools windows instead of hiding them\n"
     L"  -v, --verbose          also print what each step runs and what the tools report\n"
     L"  -q, --quiet            print only errors and the summary\n"
@@ -279,14 +280,16 @@ static bool locate_tools(const cli_options *options, wchar_t ffmpeg[MAX_PATH], w
         print(&err, L"evilvideo-cli: ffmpeg.exe is missing from evilvideo's folder; reinstall evilvideo\n");
         return false;
     }
-    if (ev_rad_locate(options->rad, NULL, rad))
+    ev_settings settings;
+    ev_settings_load(&settings);
+    if (ev_rad_locate(options->rad, settings.rad, rad))
         return true;
 
     if (options->rad)
         print(&err, L"evilvideo-cli: %ls is not a file\n", options->rad);
     else
         print(&err, L"evilvideo-cli: RAD Video Tools are not installed; install them from "
-                    L"https://www.radgametools.com/bnkdown.htm, or pass --rad with the path to radvideo64.exe\n");
+                    EV_RAD_DOWNLOAD_URL L", or pass --rad with the path to radvideo64.exe\n");
     return false;
 }
 

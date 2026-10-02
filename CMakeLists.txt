@@ -28,12 +28,13 @@ add_library(evcore STATIC
     src/core/games.c
     src/core/proc.c
     src/core/rad.c
+    src/core/settings.c
 )
 target_include_directories(evcore PUBLIC src/core)
 
 add_executable(evilvideo WIN32 src/gui/main.c src/gui/evilvideo.rc)
 add_executable(evilvideo-cli src/cli/main.c src/cli/args.c src/cli/evilvideo-cli.rc)
-target_link_libraries(evilvideo PRIVATE evcore)
+target_link_libraries(evilvideo PRIVATE evcore comctl32 ole32 shell32 uuid)
 target_link_libraries(evilvideo-cli PRIVATE evcore)
 if(NOT MSVC)
     # The CLI's entry point is wmain, which MinGW only calls with -municode.
@@ -50,6 +51,7 @@ add_executable(evtests
     tests/games_test.c
     tests/proc_test.c
     tests/rad_test.c
+    tests/settings_test.c
     src/cli/args.c
 )
 target_include_directories(evtests PRIVATE src/cli)

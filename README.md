@@ -36,7 +36,7 @@ evilvideo-cli [options] <input>...
       --stretch          stretch to fill the frame instead of letterboxing
       --trim <from>-<to> keep only this range, in seconds (e.g. 1.5-12)
   -y, --overwrite        replace existing outputs instead of skipping them
-      --rad <path>       radvideo64.exe to use (default: the standard install)
+      --rad <path>       radvideo64.exe to use (default: saved setting, then the standard install)
       --show-rad         show the RAD Video Tools windows instead of hiding them
   -v, --verbose          also print what each step runs and what the tools report
   -q, --quiet            print only errors and the summary

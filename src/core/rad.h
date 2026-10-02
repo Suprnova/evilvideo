@@ -2,6 +2,9 @@
 
 #include "proc.h"
 
+/** RAD Game Tools' Bink download page, where RAD Video Tools are installed from. */
+#define EV_RAD_DOWNLOAD_URL L"https://www.radgametools.com/bnkdown.htm"
+
 /**
  * Receives one line of the detailed log, for diagnosing a failing conversion.
  *
@@ -45,7 +48,7 @@ typedef struct ev_rad_run {
  *
  * @param explicit_path A path the user gave for this run (the CLI's --rad), or NULL. When given, it is the only
  *                      candidate.
- * @param saved_path The path saved in settings, or NULL. Used if the file still exists.
+ * @param saved_path The path saved in settings, or NULL or an empty string when none is. Used if the file still exists.
  * @param path Receives the full path to radvideo64.exe; holds MAX_PATH characters. Without an explicit or saved path,
  *             it is the standard install under %ProgramFiles(x86)% or %ProgramFiles%.
  * @return false if RAD Video Tools were not found; GetLastError has the reason.

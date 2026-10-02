@@ -1,3 +1,5 @@
+#pragma code_page(65001)
+
 #include <windows.h>
 
 #include "resource.h"
@@ -5,11 +7,34 @@
 
 CREATEPROCESS_MANIFEST_RESOURCE_ID RT_MANIFEST "evilvideo.manifest"
 
-IDD_MAIN DIALOGEX 0, 0, 320, 140
+IDD_MAIN DIALOGEX 0, 0, 320, 182
 STYLE DS_SHELLFONT | DS_CENTER | WS_POPUP | WS_CAPTION | WS_SYSMENU | WS_MINIMIZEBOX
 CAPTION "evilvideo"
 FONT 8, "MS Shell Dlg 2"
 BEGIN
+    LTEXT           "&Video", IDC_STATIC, 7, 9, 40, 8
+    EDITTEXT        IDC_INPUT, 50, 7, 206, 14, ES_AUTOHSCROLL
+    PUSHBUTTON      "&Browse…", IDC_INPUT_BROWSE, 260, 7, 53, 14
+    LTEXT           "&Game", IDC_STATIC, 7, 27, 40, 8
+    COMBOBOX        IDC_GAME, 50, 25, 263, 100, CBS_DROPDOWNLIST | WS_VSCROLL | WS_TABSTOP
+    AUTOCHECKBOX    "&Letterbox (keep aspect ratio)", IDC_LETTERBOX, 50, 43, 200, 10
+    AUTOCHECKBOX    "&Trim", IDC_TRIM, 50, 59, 30, 10
+    LTEXT           "from", IDC_STATIC, 82, 60, 17, 8
+    EDITTEXT        IDC_TRIM_START, 100, 57, 36, 14, ES_AUTOHSCROLL | WS_DISABLED
+    LTEXT           "s   to", IDC_STATIC, 139, 60, 20, 8
+    EDITTEXT        IDC_TRIM_END, 161, 57, 36, 14, ES_AUTOHSCROLL | WS_DISABLED
+    LTEXT           "s", IDC_STATIC, 200, 60, 8, 8
+    LTEXT           "Save &as", IDC_STATIC, 7, 77, 40, 8
+    EDITTEXT        IDC_OUTPUT, 50, 75, 206, 14, ES_AUTOHSCROLL
+    PUSHBUTTON      "B&rowse…", IDC_OUTPUT_BROWSE, 260, 75, 53, 14
+    CONTROL         "", IDC_PROGRESS, "msctls_progress32", 0, 7, 97, 306, 10
+    LTEXT           "", IDC_STATUS, 7, 112, 249, 24, SS_NOPREFIX
+    PUSHBUTTON      "&Show in folder", IDC_SHOW_FOLDER, 260, 111, 53, 14, NOT WS_VISIBLE
+    LTEXT           "", IDC_RAD_STATUS, 7, 144, 100, 8
+    PUSHBUTTON      "Locat&e…", IDC_RAD_LOCATE, 108, 141, 45, 14
+    CONTROL         "<a>Download them</a>", IDC_RAD_LINK, "SysLink", NOT WS_VISIBLE | WS_TABSTOP, 158, 144, 70, 9
+    DEFPUSHBUTTON   "Convert", IDOK, 260, 141, 53, 14
+    LTEXT           "", IDC_ABOUT, 7, 162, 306, 16, SS_NOPREFIX
 END
 
 VS_VERSION_INFO VERSIONINFO

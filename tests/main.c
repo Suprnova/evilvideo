@@ -23,6 +23,7 @@ int rad_test_fake(void);
 void convert_tests(void);
 int convert_test_fake_ffmpeg(void);
 void proc_tests(void);
+void settings_tests(void);
 int proc_test_child(const char *mode);
 
 int main(int argc, char **argv)
@@ -40,6 +41,7 @@ int main(int argc, char **argv)
     files_tests();
     rad_tests();
     convert_tests();
+    settings_tests();
     cli_tests();
 
     printf("%d failed\n", failures);

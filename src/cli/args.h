@@ -21,7 +21,7 @@ typedef struct cli_options {
     double trim_end;
     /** Whether to replace existing outputs instead of skipping them. */
     bool overwrite;
-    /** The --rad path, or NULL to use the standard install. */
+    /** The --rad path, or NULL to use the saved path or the standard install. */
     const wchar_t *rad;
     /** Whether to show the RAD tools' windows. */
     bool show_rad;

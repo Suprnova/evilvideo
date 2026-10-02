@@ -316,7 +316,7 @@ static bool prepare_conversion(void)
     double start = 0, end = 0;
     if (trim && !(read_seconds(IDC_TRIM_START, &start) && read_seconds(IDC_TRIM_END, &end) && start >= 0 &&
                   start < end))
-        return reject(IDC_TRIM_START, L"The trim needs a start of 0 s or more, and an end after the start.");
+        return reject(IDC_TRIM_START, L"The trim needs a start of 0s or more, and an end after the start.");
 
     if (!check_output())
         return false;

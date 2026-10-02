@@ -80,11 +80,23 @@ static void set_status(const wchar_t *format, ...)
     SetDlgItemTextW(app.dialog, IDC_STATUS, text);
 }
 
+static void alert(UINT icon, const wchar_t *text)
+{
+    MessageBoxW(app.dialog, text, title, MB_OK | icon);
+}
+
 static bool reject(int id, const wchar_t *problem)
 {
-    set_status(L"%ls", problem);
+    alert(MB_ICONWARNING, problem);
     SetFocus(control(id));
     return false;
+}
+
+// Flashes the taskbar button until the window comes to the foreground, if it is in the background.
+static void flash(void)
+{
+    FLASHWINFO info = { sizeof info, app.dialog, FLASHW_ALL | FLASHW_TIMERNOFG, 0, 0 };
+    FlashWindowEx(&info);
 }
 
 // Changing the style resets the bar, so it only changes when the mode does.
@@ -231,12 +243,18 @@ static void locate_rad(void)
         return;
 
     wchar_t rad[MAX_PATH];
-    if (ev_rad_locate(path, NULL, rad)) {
-        wcscpy(app.rad, rad);
-        wcscpy(app.settings.rad, rad);
-        app.rad_found = true;
-        update_rad();
+    if (!ev_rad_locate(path, NULL, rad)) {
+        wchar_t problem[PATH_SIZE + 128];
+        swprintf(problem, ARRAYSIZE(problem),
+                 L"%ls is not RAD Video Tools. Choose radvideo64.exe, in the folder RAD Video Tools are installed in.",
+                 file_name(path));
+        alert(MB_ICONWARNING, problem);
+        return;
     }
+    wcscpy(app.rad, rad);
+    wcscpy(app.settings.rad, rad);
+    app.rad_found = true;
+    update_rad();
 }
 
 static void show_in_folder(void)
@@ -269,12 +287,11 @@ static bool check_output(void)
     if (length == 0 || length >= PATH_SIZE || !name)
         return reject(IDC_OUTPUT, L"Choose where to save the .bik.");
 
-    wchar_t folder[PATH_SIZE];
+    wchar_t folder[PATH_SIZE], problem[PATH_SIZE + 32];
     swprintf(folder, PATH_SIZE, L"%.*ls", (int)(name - app.output), app.output);
     if (!is_folder(folder)) {
-        set_status(L"The folder %ls does not exist.", folder);
-        SetFocus(control(IDC_OUTPUT));
-        return false;
+        swprintf(problem, ARRAYSIZE(problem), L"The folder %ls does not exist.", folder);
+        return reject(IDC_OUTPUT, problem);
     }
     if (is_folder(app.output))
         return reject(IDC_OUTPUT, L"The output is a folder; add a file name.");
@@ -358,13 +375,13 @@ static void start(void)
     wchar_t message[512];
     if (!ev_job_create(&app.job)) {
         ev_error_message(message, ARRAYSIZE(message), L"Could not create a job object", GetLastError());
-        set_status(L"%ls", message);
+        alert(MB_ICONERROR, message);
         return;
     }
     app.thread = CreateThread(NULL, 0, convert_thread, NULL, 0, NULL);
     if (!app.thread) {
         ev_error_message(message, ARRAYSIZE(message), L"Could not start the conversion", GetLastError());
-        set_status(L"%ls", message);
+        alert(MB_ICONERROR, message);
         ev_job_close(&app.job);
         return;
     }
@@ -410,12 +427,16 @@ static void finish(ev_result result, wchar_t *message)
         set_progress(100);
         set_status(L"Saved %ls", file_name(app.output));
         ShowWindow(control(IDC_SHOW_FOLDER), SW_SHOW);
+        flash();
     } else if (result == EV_RESULT_CANCELLED) {
         set_progress(0);
         set_status(L"Cancelled.");
     } else {
+        const wchar_t *problem = message ? message : L"The conversion failed.";
         set_progress(0);
-        set_status(L"%ls", message ? message : L"The conversion failed.");
+        set_status(L"Failed: %ls", problem);
+        flash();
+        alert(MB_ICONERROR, problem);
     }
     free(message);
 }

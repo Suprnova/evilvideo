@@ -46,12 +46,17 @@ typedef struct ev_rad_run {
 /**
  * Finds radvideo64.exe.
  *
- * @param explicit_path A path the user gave for this run (the CLI's --rad), or NULL. When given, it is the only
- *                      candidate.
- * @param saved_path The path saved in settings, or NULL or an empty string when none is. Used if the file still exists.
+ * A given path counts only if its file is named radvideo64.exe. Another program would not follow the RAD tools' window
+ * protocol, and the window watcher would take its dialogs for error messages.
+ *
+ * @param explicit_path A path the user gave for this run (the CLI's --rad, or the GUI's Locate), or NULL. When given,
+ *                      it is the only candidate.
+ * @param saved_path The path saved in settings, or NULL or an empty string when none is. Used if it is still
+ *                   radvideo64.exe.
  * @param path Receives the full path to radvideo64.exe; holds MAX_PATH characters. Without an explicit or saved path,
  *             it is the standard install under %ProgramFiles(x86)% or %ProgramFiles%.
- * @return false if RAD Video Tools were not found; GetLastError has the reason.
+ * @return false if RAD Video Tools were not found; GetLastError has the reason, which is ERROR_BAD_EXE_FORMAT when the
+ *         explicit path is a file with another name.
  */
 bool ev_rad_locate(const wchar_t *explicit_path, const wchar_t *saved_path, wchar_t path[MAX_PATH]);
 

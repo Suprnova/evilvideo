@@ -49,11 +49,13 @@ bool ev_rad_locate(const wchar_t *explicit_path, const wchar_t *saved_path, wcha
 {
     const wchar_t *given = explicit_path ? explicit_path : saved_path;
     if (given) {
-        DWORD length = GetFullPathNameW(given, MAX_PATH, path, NULL);
-        if (length > 0 && length < MAX_PATH && is_file(path))
+        wchar_t *name = NULL;
+        DWORD length = GetFullPathNameW(given, MAX_PATH, path, &name);
+        bool named_right = name && _wcsicmp(name, L"radvideo64.exe") == 0;
+        if (length > 0 && length < MAX_PATH && named_right && is_file(path))
             return true;
         if (explicit_path) {
-            SetLastError(ERROR_FILE_NOT_FOUND);
+            SetLastError(named_right || !is_file(path) ? ERROR_FILE_NOT_FOUND : ERROR_BAD_EXE_FORMAT);
             return false;
         }
     }

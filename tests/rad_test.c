@@ -240,6 +240,24 @@ static void locate_rejects_missing_explicit_path(void)
     ev_temp_delete(folder);
 }
 
+static void locate_rejects_explicit_path_to_another_program(void)
+{
+    wchar_t folder[MAX_PATH], rad[MAX_PATH], other[MAX_PATH], path[MAX_PATH];
+    ev_temp_create(folder);
+    fake_install(folder, rad);
+    program_files original = replace_program_files(folder);
+    swprintf(other, MAX_PATH, L"%ls\\evilvideo.exe", folder);
+    create_file(other);
+
+    bool found = ev_rad_locate(other, NULL, path);
+    DWORD error = GetLastError();
+
+    restore_program_files(&original);
+    EXPECT(!found);
+    EXPECT(error == ERROR_BAD_EXE_FORMAT);
+    ev_temp_delete(folder);
+}
+
 static void locate_uses_saved_path(void)
 {
     wchar_t folder[MAX_PATH], rad[MAX_PATH], path[MAX_PATH];
@@ -260,6 +278,22 @@ static void locate_falls_back_to_standard_install(void)
     program_files original = replace_program_files(folder);
 
     bool found = ev_rad_locate(NULL, L"C:\\evilvideo-missing\\radvideo64.exe", path);
+
+    restore_program_files(&original);
+    EXPECT(found && wcscmp(path, rad) == 0);
+    ev_temp_delete(folder);
+}
+
+static void locate_skips_saved_path_to_another_program(void)
+{
+    wchar_t folder[MAX_PATH], rad[MAX_PATH], other[MAX_PATH], path[MAX_PATH];
+    ev_temp_create(folder);
+    fake_install(folder, rad);
+    program_files original = replace_program_files(folder);
+    swprintf(other, MAX_PATH, L"%ls\\evilvideo.exe", folder);
+    create_file(other);
+
+    bool found = ev_rad_locate(NULL, other, path);
 
     restore_program_files(&original);
     EXPECT(found && wcscmp(path, rad) == 0);
@@ -543,8 +577,10 @@ void rad_tests(void)
 {
     RUN_TEST(locate_uses_explicit_path);
     RUN_TEST(locate_rejects_missing_explicit_path);
+    RUN_TEST(locate_rejects_explicit_path_to_another_program);
     RUN_TEST(locate_uses_saved_path);
     RUN_TEST(locate_falls_back_to_standard_install);
+    RUN_TEST(locate_skips_saved_path_to_another_program);
     RUN_TEST(locate_treats_empty_saved_path_as_none);
     RUN_TEST(locate_fails_when_not_installed);
     RUN_TEST(binkc_args_compress_frame_sequence);

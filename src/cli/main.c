@@ -285,7 +285,9 @@ static bool locate_tools(const cli_options *options, wchar_t ffmpeg[MAX_PATH], w
     if (ev_rad_locate(options->rad, settings.rad, rad))
         return true;
 
-    if (options->rad)
+    if (options->rad && GetLastError() == ERROR_BAD_EXE_FORMAT)
+        print(&err, L"evilvideo-cli: %ls is not radvideo64.exe\n", options->rad);
+    else if (options->rad)
         print(&err, L"evilvideo-cli: %ls is not a file\n", options->rad);
     else
         print(&err, L"evilvideo-cli: RAD Video Tools are not installed; install them from "

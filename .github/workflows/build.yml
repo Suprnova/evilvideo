@@ -59,7 +59,7 @@ jobs:
             exit 1
           fi
           mkdir build/release
-          cp build/mingw/evilvideo-cli.exe build/ffmpeg/ffmpeg.exe LICENSE build/release/
+          cp build/mingw/evilvideo.exe build/mingw/evilvideo-cli.exe build/ffmpeg/ffmpeg.exe LICENSE build/release/
           cp -r build/ffmpeg/licenses build/release/
           cp README.md build/release/README.txt
           (cd build/release && zip -q -r -9 "../evilvideo-$version-windows-x64.zip" .)

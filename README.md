@@ -4,7 +4,7 @@ evilvideo is a tool for modders of Heavy Iron Studios' EvilEngine games who wish
 
 It prepares the video with a bundled [FFmpeg](https://ffmpeg.org) and compresses it with RAD Game Tools' own Bink compressor, which you install separately. It runs on Windows, and on Linux through Wine.
 
-This release is a command-line tool. A graphical version is planned.
+evilvideo comes as an app, `evilvideo.exe`, that converts one video at a time, and a command-line tool, `evilvideo-cli.exe`, that converts many at once.
 
 ## Supported games
 
@@ -21,11 +21,24 @@ Every video is converted to 29.97 fps with 48 kHz stereo audio.
 ## Installing
 
 1. Download and install RAD Video Tools from [RAD's Bink download page](https://www.radgametools.com/bnkdown.htm). They are free for non-commercial use, and evilvideo cannot include them.
-2. Download the latest `evilvideo-<version>-windows-x64.zip` from [Releases](https://github.com/Suprnova/evilvideo/releases) and extract it anywhere. Keep `ffmpeg.exe` next to `evilvideo-cli.exe`.
+2. Download the latest `evilvideo-<version>-windows-x64.zip` from [Releases](https://github.com/Suprnova/evilvideo/releases) and extract it anywhere. Keep `ffmpeg.exe` next to `evilvideo.exe` and `evilvideo-cli.exe`.
 
-evilvideo finds RAD Video Tools in their standard install folder. If you installed them elsewhere, pass `--rad <path to radvideo64.exe>`.
+evilvideo finds RAD Video Tools in their standard install folder. If you installed them elsewhere, click **Locate…** in the app and pick `radvideo64.exe`; the app remembers it, and the command-line tool uses it too. The command-line tool also takes `--rad <path to radvideo64.exe>`.
 
-## Usage
+## Using the app
+
+Open `evilvideo.exe`.
+
+1. Choose a video with **Browse…**, or drop it on the window. You can also drop a video onto `evilvideo.exe` itself.
+2. Pick the game the video is for.
+3. Leave **Letterbox** checked to keep the video's shape with black bars, or uncheck it to stretch the video over the whole screen.
+4. To keep only part of the video, check **Trim** and enter where it starts and ends, in seconds.
+5. **Save as** follows the video's name with a `.bik` extension. Change it or use **Browse…** to save elsewhere.
+6. Click **Convert**. The bar shows the progress, and **Cancel** stops the conversion. When it is done, **Show in folder** opens the folder with the new `.bik` selected.
+
+The app remembers the game, the letterbox choice and where RAD Video Tools are, in `%APPDATA%\evilvideo\evilvideo.ini`.
+
+## Using the command line
 
 ```
 evilvideo-cli [options] <input>...
@@ -56,7 +69,7 @@ evilvideo-cli -g rotu --stretch -o logo.bik "my logo.mov"
 - Inputs may use `*` and `?` wildcards. Each output keeps its input's name with a `.bik` extension.
 - Existing outputs are skipped unless `--overwrite` is given.
 
-If a conversion fails and the reason is unclear, run it again with `--verbose` and include that output in a [new issue](https://github.com/Suprnova/evilvideo/issues/new).
+If a conversion fails and the reason is unclear, in the app or on the command line, run it again with `evilvideo-cli --verbose` and include that output in a [new issue](https://github.com/Suprnova/evilvideo/issues/new).
 
 ## Linux
 
@@ -67,16 +80,18 @@ evilvideo runs under Wine, as RAD Video Tools do.
 3. Run evilvideo with Wine:
 
    ```
+   wine evilvideo.exe
    WINEDEBUG=-all wine evilvideo-cli.exe --game bfbb intro.mp4
    ```
 
-`WINEDEBUG=-all` is optional, but hides Wine's own diagnostic messages. Use relative paths, or Wine's `Z:` drive for absolute ones (`Z:/home/me/intro.mp4`). Unix shells expand wildcards before evilvideo sees them, so quote a pattern only if you want evilvideo to expand it.
+The app's file pickers show Linux files under the `Z:` drive. `WINEDEBUG=-all` is optional, but hides Wine's own diagnostic messages. On the command line, use relative paths, or Wine's `Z:` drive for absolute ones (`Z:/home/me/intro.mp4`). Unix shells expand wildcards before evilvideo sees them, so quote a pattern only if you want evilvideo to expand it.
 
 In the event that you use a custom `WINEPREFIX`, ensure you use the same one that you installed `radtools.exe` with.
 
 If the compression step is significantly slower than expected, limiting Wine to a single CPU may yield faster results.
 
 ```
+taskset -c 0 wine evilvideo.exe
 WINEDEBUG=-all taskset -c 0 wine evilvideo-cli.exe --game bfbb intro.mp4
 ```
 

@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.25)
-project(evilvideo VERSION 0.1.0 LANGUAGES C RC)
+project(evilvideo VERSION 1.0.0 LANGUAGES C RC)
 
 set(CMAKE_C_STANDARD 17)
 set(CMAKE_C_STANDARD_REQUIRED ON)
